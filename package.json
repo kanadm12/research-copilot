@@ -1,0 +1,410 @@
+{
+  "name": "research-copilot",
+  "displayName": "Research Copilot - NotebookLM for VS Code",
+  "description": "Turn your PDF research materials into an AI-powered knowledge base. Query, summarize, and cross-reference your documents using GitHub Copilot.",
+  "version": "0.1.0",
+  "publisher": "research-copilot",
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kanadm12/research-copilot.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Education",
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "research",
+    "pdf",
+    "copilot",
+    "notebooklm",
+    "ai",
+    "knowledge base",
+    "documents"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:**/*.pdf"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "researchCopilot.indexWorkspace",
+        "title": "Research Copilot: Index All PDFs in Workspace"
+      },
+      {
+        "command": "researchCopilot.indexFile",
+        "title": "Research Copilot: Index This PDF"
+      },
+      {
+        "command": "researchCopilot.showDashboard",
+        "title": "Research Copilot: Open Dashboard"
+      },
+      {
+        "command": "researchCopilot.searchDocuments",
+        "title": "Research Copilot: Search Documents"
+      },
+      {
+        "command": "researchCopilot.semanticSearch",
+        "title": "Research Copilot: Semantic Search (AI-powered)"
+      },
+      {
+        "command": "researchCopilot.hybridSearch",
+        "title": "Research Copilot: Hybrid Search (Keywords + AI)"
+      },
+      {
+        "command": "researchCopilot.buildSemanticIndex",
+        "title": "Research Copilot: Build Semantic Search Index"
+      },
+      {
+        "command": "researchCopilot.clearIndex",
+        "title": "Research Copilot: Clear Index"
+      },
+      {
+        "command": "researchCopilot.exportNotes",
+        "title": "Research Copilot: Export Notes to Markdown"
+      },
+      {
+        "command": "researchCopilot.createHighlight",
+        "title": "Research Copilot: Create Highlight"
+      },
+      {
+        "command": "researchCopilot.viewHighlights",
+        "title": "Research Copilot: View All Highlights"
+      },
+      {
+        "command": "researchCopilot.exportHighlights",
+        "title": "Research Copilot: Export Highlights"
+      },
+      {
+        "command": "researchCopilot.extractCitations",
+        "title": "Research Copilot: Extract Citations from Document"
+      },
+      {
+        "command": "researchCopilot.exportBibTeX",
+        "title": "Research Copilot: Export All Citations as BibTeX"
+      },
+      {
+        "command": "researchCopilot.findSimilarPassages",
+        "title": "Research Copilot: Find Similar Passages"
+      },
+      {
+        "command": "researchCopilot.installPythonDeps",
+        "title": "Research Copilot: Install Python Dependencies (pdf2docx)"
+      },
+      {
+        "command": "researchCopilot.generatePodcast",
+        "title": "Research Copilot: Generate Audio Podcast",
+        "icon": "$(unmute)"
+      },
+      {
+        "command": "researchCopilot.showKnowledgeGraph",
+        "title": "Research Copilot: Show Knowledge Graph",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "researchCopilot.exportKnowledgeGraph",
+        "title": "Research Copilot: Export Knowledge Graph"
+      },
+      {
+        "command": "researchCopilot.writeResearch",
+        "title": "Research Copilot: Write Research (Literature Review, Abstract, etc.)",
+        "icon": "$(edit)"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "researchCopilotDocuments",
+          "name": "Research Documents",
+          "when": "researchCopilot.hasIndexedDocuments"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "researchCopilot",
+          "title": "Research Copilot",
+          "icon": "resources/icon.png"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Research Copilot",
+      "properties": {
+        "researchCopilot.autoIndex": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically index PDF files when opened or added to workspace"
+        },
+        "researchCopilot.extractImages": {
+          "type": "boolean",
+          "default": true,
+          "description": "Extract and process images from PDFs"
+        },
+        "researchCopilot.ocrEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable OCR for scanned PDFs and images"
+        },
+        "researchCopilot.indexPath": {
+          "type": "string",
+          "default": ".research-copilot",
+          "description": "Folder to store index data (relative to workspace root)"
+        },
+        "researchCopilot.maxPdfSizeMB": {
+          "type": "number",
+          "default": 50,
+          "description": "Maximum PDF file size to process (in MB)"
+        },
+        "researchCopilot.chunkSize": {
+          "type": "number",
+          "default": 1000,
+          "description": "Text chunk size for indexing (in characters)"
+        },
+        "researchCopilot.chunkOverlap": {
+          "type": "number",
+          "default": 200,
+          "description": "Overlap between chunks (in characters)"
+        },
+        "researchCopilot.useDocxConversion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use enhanced PDF conversion via DOCX (better for images, tables, and complex layouts). Requires Python - dependencies are auto-installed on first use."
+        }
+      }
+    },
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "researchCopilot.indexFile",
+          "when": "resourceExtname == .pdf",
+          "group": "researchCopilot"
+        }
+      ]
+    },
+    "chatParticipants": [
+      {
+        "id": "researchCopilot.research",
+        "name": "research",
+        "fullName": "Research Copilot",
+        "description": "Ask questions about your research documents, PDFs, and notes",
+        "isSticky": true
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "researchCopilot_searchDocuments",
+        "displayName": "Search Research Documents",
+        "description": "Search through indexed PDF documents and research materials. Use this to find relevant information from the user's research papers and documents.",
+        "modelDescription": "Search through indexed PDF documents and research materials. Use this to find relevant information from the user's research papers and documents.",
+        "parametersSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query to find relevant documents and passages"
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results to return (default: 10)"
+            },
+            "documentFilter": {
+              "type": "string",
+              "description": "Optional filter to search within specific documents (filename pattern)"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "researchCopilot_getDocumentContent",
+        "displayName": "Get Document Content",
+        "description": "Get the full extracted content of a specific PDF document",
+        "modelDescription": "Get the full extracted content of a specific PDF document",
+        "parametersSchema": {
+          "type": "object",
+          "properties": {
+            "documentPath": {
+              "type": "string",
+              "description": "The path to the document to retrieve"
+            },
+            "pageRange": {
+              "type": "string",
+              "description": "Optional page range (e.g., '1-5' or '1,3,5')"
+            }
+          },
+          "required": [
+            "documentPath"
+          ]
+        }
+      },
+      {
+        "name": "researchCopilot_listDocuments",
+        "displayName": "List Research Documents",
+        "description": "List all indexed research documents in the workspace",
+        "modelDescription": "List all indexed research documents in the workspace",
+        "parametersSchema": {
+          "type": "object",
+          "properties": {
+            "includeMetadata": {
+              "type": "boolean",
+              "description": "Include document metadata (page count, size, etc.)"
+            }
+          }
+        }
+      },
+      {
+        "name": "researchCopilot_getDocumentImages",
+        "displayName": "Get Document Images",
+        "description": "Get images extracted from a PDF document with their descriptions",
+        "modelDescription": "Get images extracted from a PDF document with their descriptions",
+        "parametersSchema": {
+          "type": "object",
+          "properties": {
+            "documentPath": {
+              "type": "string",
+              "description": "The path to the document"
+            },
+            "pageNumber": {
+              "type": "number",
+              "description": "Optional specific page number to get images from"
+            }
+          },
+          "required": [
+            "documentPath"
+          ]
+        }
+      },
+      {
+        "name": "researchCopilot_summarizeDocument",
+        "displayName": "Summarize Document",
+        "description": "Get a summary of a specific document or section",
+        "modelDescription": "Get a summary of a specific document or section",
+        "parametersSchema": {
+          "type": "object",
+          "properties": {
+            "documentPath": {
+              "type": "string",
+              "description": "The path to the document to summarize"
+            },
+            "section": {
+              "type": "string",
+              "description": "Optional section name to summarize (e.g., 'abstract', 'methods', 'conclusions')"
+            }
+          },
+          "required": [
+            "documentPath"
+          ]
+        }
+      },
+      {
+        "name": "researchCopilot_semanticSearch",
+        "displayName": "Semantic Search",
+        "description": "AI-powered semantic search using embeddings. Better at understanding meaning and context than keyword search. Use for conceptual queries.",
+        "modelDescription": "AI-powered semantic search using embeddings. Better at understanding meaning and context than keyword search. Use for conceptual queries.",
+        "parametersSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The semantic search query - can be a question or concept description"
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results to return (default: 10)"
+            },
+            "documentFilter": {
+              "type": "string",
+              "description": "Optional filter to search within specific documents"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "researchCopilot_getCitations",
+        "displayName": "Get Citations",
+        "description": "Extract academic citations and references from a document. Detects APA, MLA, IEEE, Harvard, and other citation styles.",
+        "modelDescription": "Extract academic citations and references from a document. Detects APA, MLA, IEEE, Harvard, and other citation styles.",
+        "parametersSchema": {
+          "type": "object",
+          "properties": {
+            "documentPath": {
+              "type": "string",
+              "description": "The path to the document to extract citations from"
+            }
+          },
+          "required": [
+            "documentPath"
+          ]
+        }
+      },
+      {
+        "name": "researchCopilot_getHighlights",
+        "displayName": "Get User Highlights",
+        "description": "Retrieve highlights and annotations the user has made on their research documents",
+        "modelDescription": "Retrieve highlights and annotations the user has made on their research documents",
+        "parametersSchema": {
+          "type": "object",
+          "properties": {
+            "documentPath": {
+              "type": "string",
+              "description": "Optional: filter highlights by document"
+            },
+            "tag": {
+              "type": "string",
+              "description": "Optional: filter highlights by tag"
+            },
+            "color": {
+              "type": "string",
+              "description": "Optional: filter highlights by color (yellow, green, blue, pink, purple, orange)"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "@vscode/vsce": "^2.22.0",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.17.0",
+    "mammoth": "^1.6.0",
+    "ml-distance": "^4.0.1",
+    "natural": "^6.10.0",
+    "onnxruntime-node": "^1.17.0",
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^3.11.174",
+    "sharp": "^0.33.0",
+    "tesseract.js": "^5.0.4",
+    "uuid": "^9.0.0"
+  }
+}

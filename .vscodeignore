@@ -1,0 +1,18 @@
+.vscode/**
+.vscode-test/**
+src/**
+**/*.ts
+**/*.map
+.gitignore
+tsconfig.json
+*.md
+!README.md
+node_modules/**
+.research-copilot/**
+# Include pdf2docx but exclude unnecessary files
+pdf2docx/.git/**
+pdf2docx/.github/**
+pdf2docx/docs/**
+pdf2docx/test/**
+pdf2docx/*.md
+pdf2docx/Makefile
