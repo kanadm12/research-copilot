@@ -1,25 +1,34 @@
 import * as vscode from 'vscode';
-import { DocumentStore } from '../services/documentStore';
+import { DocumentStore, ChunkPosition } from '../services/documentStore';
 import { SearchService } from '../services/searchService';
 import { CitationExtractor } from '../services/citationExtractor';
 import { HighlightService } from '../services/highlightService';
+import { CitedAnswerGenerator, CitedAnswer, InlineCitation } from '../services/citedAnswerGenerator';
+import { PdfViewerService, CitationLink } from '../services/pdfViewerService';
+import { PdfPositionService } from '../services/pdfPositionService';
 
 export class ResearchChatParticipant {
     private documentStore: DocumentStore;
     private searchService: SearchService;
     private citationExtractor: CitationExtractor | null;
     private highlightService: HighlightService | null;
+    private citedAnswerGenerator: CitedAnswerGenerator | null = null;
+    private pdfViewerService: PdfViewerService | null = null;
 
     constructor(
         documentStore: DocumentStore, 
         searchService: SearchService,
         citationExtractor?: CitationExtractor,
-        highlightService?: HighlightService
+        highlightService?: HighlightService,
+        citedAnswerGenerator?: CitedAnswerGenerator,
+        pdfViewerService?: PdfViewerService
     ) {
         this.documentStore = documentStore;
         this.searchService = searchService;
         this.citationExtractor = citationExtractor || null;
         this.highlightService = highlightService || null;
+        this.citedAnswerGenerator = citedAnswerGenerator || null;
+        this.pdfViewerService = pdfViewerService || null;
     }
 
     async handleRequest(
@@ -99,6 +108,12 @@ export class ResearchChatParticipant {
         if (query.toLowerCase().startsWith('/semantic')) {
             const searchQuery = query.substring('/semantic'.length).trim();
             return this.handleSemanticSearchQuery(searchQuery, stream, token, attachedFiles);
+        }
+
+        // New: /cited command for answers with clickable citations
+        if (query.toLowerCase().startsWith('/cited')) {
+            const searchQuery = query.substring('/cited'.length).trim();
+            return this.handleCitedQuery(searchQuery || query, stream, token, attachedFiles);
         }
 
         // Default: search and answer (uses hybrid search) - pass attached files for filtering
@@ -375,6 +390,95 @@ Be concise but thorough.`;
                 documents: Array.from(citedDocs)
             } 
         };
+    }
+
+    /**
+     * Handle query with per-sentence citations and clickable PDF links
+     */
+    private async handleCitedQuery(
+        query: string,
+        stream: vscode.ChatResponseStream,
+        token: vscode.CancellationToken,
+        attachedFiles: string[] = []
+    ): Promise<vscode.ChatResult> {
+        if (!this.citedAnswerGenerator) {
+            // Fall back to regular search
+            stream.markdown('*Note: Cited answer generator not available. Using standard search.*\n\n');
+            return this.handleSearchQuery(query, stream, token, attachedFiles);
+        }
+
+        stream.progress('Generating answer with citations...');
+
+        // Get document filter from attached files
+        const matchedDocs = this.findMatchingDocuments(attachedFiles);
+        const documentFilter = matchedDocs.length > 0 ? matchedDocs.map(d => d.id) : undefined;
+
+        try {
+            // Generate cited answer
+            const answer = await this.citedAnswerGenerator.generateAnswer(
+                query,
+                10,  // max sources
+                documentFilter
+            );
+
+            // Stream the answer with clickable citations
+            stream.markdown('📚 **Answer with citations:**\n\n');
+            
+            for (const sentence of answer.sentences) {
+                stream.markdown(sentence.text);
+
+                if (sentence.citations.length > 0) {
+                    const citationNumbers = [...new Set(sentence.citations.map(c => c.index))].sort((a, b) => a - b);
+                    
+                    for (const num of citationNumbers) {
+                        const citation = answer.citations.find(c => c.index === num);
+                        if (citation) {
+                            // Create citation as a button that can be clicked
+                            const citationText = ` [${num}]`;
+                            stream.markdown(citationText);
+                        }
+                    }
+                }
+                stream.markdown(' ');
+            }
+
+            // Add clickable references section
+            stream.markdown('\n\n---\n\n**📖 References** *(click to open in PDF)*:\n\n');
+
+            for (const citation of answer.citations) {
+                const pageInfo = citation.pageNumber > 0 ? `, p.${citation.pageNumber}` : '';
+                
+                // Create a button for each citation
+                stream.button({
+                    title: `[${citation.index}] ${citation.documentName}${pageInfo}`,
+                    command: 'researchCopilot.openCitation',
+                    arguments: [{
+                        documentPath: citation.documentPath,
+                        pageNumber: citation.pageNumber,
+                        text: citation.text.substring(0, 200),
+                        position: citation.position,
+                        documentName: citation.documentName
+                    }]
+                });
+                stream.markdown('\n');
+            }
+
+            // Add confidence info
+            const avgConfidence = answer.metadata.averageConfidence;
+            stream.markdown(`\n*${answer.metadata.sourcesUsed} sources used, ${(avgConfidence * 100).toFixed(0)}% avg. confidence*\n`);
+
+            return {
+                metadata: {
+                    command: 'cited',
+                    resultCount: answer.citations.length,
+                    query: answer.metadata.query
+                }
+            };
+        } catch (error) {
+            console.error('Error generating cited answer:', error);
+            stream.markdown(`\n\n*Error generating cited answer. Falling back to standard search.*\n\n`);
+            return this.handleSearchQuery(query, stream, token, attachedFiles);
+        }
     }
 
     private async handleCitationsCommand(

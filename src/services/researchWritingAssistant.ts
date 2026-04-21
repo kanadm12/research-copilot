@@ -12,6 +12,36 @@ export interface WritingRequest {
     citationStyle: 'apa' | 'mla' | 'chicago' | 'ieee' | 'bibtex';
     maxLength?: number;
     documentIds?: string[]; // Specific documents to use
+    // Template support
+    template?: 'ieee' | 'springer' | 'acm' | 'apa' | 'custom';
+    customTemplatePath?: string;
+}
+
+export interface FullPaperRequest {
+    title: string;
+    authors: Array<{
+        name: string;
+        affiliation?: string;
+        email?: string;
+    }>;
+    topic: string;
+    template: 'ieee' | 'springer' | 'acm' | 'apa' | 'custom';
+    customTemplatePath?: string;
+    citationStyle: 'apa' | 'mla' | 'chicago' | 'ieee';
+    sections: Array<'abstract' | 'introduction' | 'related_work' | 'methodology' | 'results' | 'discussion' | 'conclusion'>;
+    documentIds?: string[];
+    keywords?: string[];
+}
+
+export interface FullPaperResult {
+    latex: string;
+    bibtex: string;
+    markdown: string;
+    sections: Array<{
+        title: string;
+        content: string;
+    }>;
+    citations: UsedCitation[];
 }
 
 export interface WritingResult {
@@ -496,5 +526,309 @@ ${latexContent}
      */
     getOutputDir(): string {
         return this.outputDir;
+    }
+
+    /**
+     * Generate a full research paper with all sections
+     */
+    async generateFullPaper(
+        request: FullPaperRequest,
+        progress?: vscode.Progress<{ message?: string; increment?: number }>
+    ): Promise<FullPaperResult> {
+        const sections: Array<{ title: string; content: string }> = [];
+        const allCitations: UsedCitation[] = [];
+        const totalSections = request.sections.length + 1; // +1 for abstract
+        let currentStep = 0;
+
+        // Generate abstract first
+        progress?.report({ message: 'Generating abstract...', increment: 0 });
+        const abstractResult = await this.generate({
+            type: 'abstract',
+            topic: request.topic,
+            citationStyle: request.citationStyle,
+            documentIds: request.documentIds,
+            maxLength: 250
+        });
+        currentStep++;
+        progress?.report({ 
+            message: 'Abstract complete', 
+            increment: (currentStep / totalSections) * 100 
+        });
+
+        // Generate each section
+        for (const sectionType of request.sections) {
+            if (sectionType === 'abstract') continue; // Already generated
+            
+            progress?.report({ message: `Generating ${sectionType}...`, increment: 0 });
+            
+            const result = await this.generate({
+                type: sectionType as any,
+                topic: request.topic,
+                citationStyle: request.citationStyle,
+                documentIds: request.documentIds
+            });
+
+            sections.push({
+                title: this.getSectionTitle(sectionType),
+                content: result.content
+            });
+
+            // Merge citations
+            for (const citation of result.citations) {
+                if (!allCitations.some(c => c.key === citation.key)) {
+                    allCitations.push(citation);
+                }
+            }
+
+            currentStep++;
+            progress?.report({ 
+                message: `${sectionType} complete`, 
+                increment: (currentStep / totalSections) * 100 
+            });
+        }
+
+        // Generate final LaTeX document
+        const latex = this.generateFullPaperLatex(request, abstractResult.content, sections, allCitations);
+        const bibtex = this.generateBibTeX(allCitations);
+        const markdown = this.generateFullPaperMarkdown(request, abstractResult.content, sections, allCitations);
+
+        // Save outputs
+        const timestamp = Date.now();
+        const baseName = `paper_${timestamp}`;
+        fs.writeFileSync(path.join(this.outputDir, `${baseName}.tex`), latex);
+        fs.writeFileSync(path.join(this.outputDir, `${baseName}.bib`), bibtex);
+        fs.writeFileSync(path.join(this.outputDir, `${baseName}.md`), markdown);
+
+        progress?.report({ message: 'Paper generation complete!', increment: 100 });
+
+        return {
+            latex,
+            bibtex,
+            markdown,
+            sections,
+            citations: allCitations
+        };
+    }
+
+    /**
+     * Generate full paper LaTeX based on template
+     */
+    private generateFullPaperLatex(
+        request: FullPaperRequest,
+        abstract: string,
+        sections: Array<{ title: string; content: string }>,
+        citations: UsedCitation[]
+    ): string {
+        const templateType = request.template || 'ieee';
+        
+        // Format authors based on template
+        let authorsLatex = '';
+        if (templateType === 'ieee') {
+            authorsLatex = request.authors.map(a => {
+                let str = a.name;
+                if (a.affiliation) str += `\\\\${this.escapeLatex(a.affiliation)}`;
+                if (a.email) str += `\\\\\\texttt{${a.email}}`;
+                return str;
+            }).join(' \\and ');
+        } else {
+            authorsLatex = request.authors.map(a => a.name).join(', ');
+        }
+
+        // Build sections content
+        const sectionsLatex = sections.map(s => 
+            `\\section{${this.escapeLatex(s.title)}}\n${s.content}\n`
+        ).join('\n');
+
+        // Process citations in content
+        let processedSections = sectionsLatex;
+        for (const citation of citations) {
+            const citeKey = citation.documentName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            processedSections = processedSections.replace(
+                new RegExp(`\\[${citation.key}\\]`, 'g'),
+                `\\cite{${citeKey}}`
+            );
+        }
+
+        // Keywords
+        const keywordsLatex = request.keywords?.length 
+            ? request.keywords.map(k => this.escapeLatex(k)).join(', ')
+            : '';
+
+        // Select template
+        let template = '';
+        switch (templateType) {
+            case 'ieee':
+                template = `\\documentclass[conference]{IEEEtran}
+\\usepackage{cite}
+\\usepackage{amsmath,amssymb,amsfonts}
+\\usepackage{graphicx}
+\\usepackage{textcomp}
+\\usepackage{xcolor}
+\\usepackage{hyperref}
+
+\\begin{document}
+
+\\title{${this.escapeLatex(request.title)}}
+\\author{${authorsLatex}}
+
+\\maketitle
+
+\\begin{abstract}
+${abstract}
+\\end{abstract}
+
+\\begin{IEEEkeywords}
+${keywordsLatex}
+\\end{IEEEkeywords}
+
+${processedSections}
+
+\\bibliographystyle{ieeetr}
+\\begin{thebibliography}{99}
+${this.generateBibliographyItems(citations)}
+\\end{thebibliography}
+
+\\end{document}`;
+                break;
+
+            case 'springer':
+                template = `\\documentclass[runningheads]{llncs}
+\\usepackage{graphicx}
+\\usepackage{hyperref}
+
+\\begin{document}
+
+\\title{${this.escapeLatex(request.title)}}
+\\author{${request.authors.map((a, i) => `${a.name}\\inst{${i + 1}}`).join(' \\and ')}}
+\\institute{${request.authors.map((a, i) => `${a.affiliation || 'Unknown'}`).join(' \\and ')}}
+
+\\maketitle
+
+\\begin{abstract}
+${abstract}
+\\keywords{${keywordsLatex}}
+\\end{abstract}
+
+${processedSections}
+
+\\begin{thebibliography}{99}
+${this.generateBibliographyItems(citations)}
+\\end{thebibliography}
+
+\\end{document}`;
+                break;
+
+            case 'acm':
+                template = `\\documentclass[sigconf]{acmart}
+\\setcopyright{none}
+
+\\begin{document}
+
+\\title{${this.escapeLatex(request.title)}}
+${request.authors.map(a => `\\author{${a.name}}
+\\affiliation{\\institution{${a.affiliation || 'Unknown'}}}
+\\email{${a.email || ''}}`).join('\n')}
+
+\\begin{abstract}
+${abstract}
+\\end{abstract}
+
+\\keywords{${keywordsLatex}}
+
+\\maketitle
+
+${processedSections}
+
+\\bibliographystyle{ACM-Reference-Format}
+\\begin{thebibliography}{99}
+${this.generateBibliographyItems(citations)}
+\\end{thebibliography}
+
+\\end{document}`;
+                break;
+
+            default:
+                template = `\\documentclass[12pt,a4paper]{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage{hyperref}
+\\usepackage{geometry}
+\\geometry{margin=1in}
+
+\\title{${this.escapeLatex(request.title)}}
+\\author{${authorsLatex}}
+\\date{\\today}
+
+\\begin{document}
+
+\\maketitle
+
+\\begin{abstract}
+${abstract}
+\\end{abstract}
+
+${processedSections}
+
+\\begin{thebibliography}{99}
+${this.generateBibliographyItems(citations)}
+\\end{thebibliography}
+
+\\end{document}`;
+        }
+
+        return template;
+    }
+
+    /**
+     * Generate bibliography items for thebibliography environment
+     */
+    private generateBibliographyItems(citations: UsedCitation[]): string {
+        return citations.map(c => {
+            const citeKey = c.documentName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+            const title = c.documentName.replace('.pdf', '');
+            return `\\bibitem{${citeKey}} ${title}, ${new Date().getFullYear()}.`;
+        }).join('\n');
+    }
+
+    /**
+     * Generate full paper in Markdown format
+     */
+    private generateFullPaperMarkdown(
+        request: FullPaperRequest,
+        abstract: string,
+        sections: Array<{ title: string; content: string }>,
+        citations: UsedCitation[]
+    ): string {
+        let md = `# ${request.title}\n\n`;
+        md += `**Authors:** ${request.authors.map(a => a.name).join(', ')}\n\n`;
+        
+        if (request.keywords?.length) {
+            md += `**Keywords:** ${request.keywords.join(', ')}\n\n`;
+        }
+
+        md += `## Abstract\n\n${abstract}\n\n`;
+
+        for (const section of sections) {
+            md += `## ${section.title}\n\n${section.content}\n\n`;
+        }
+
+        md += `## References\n\n`;
+        citations.forEach((c, i) => {
+            md += `[${i + 1}] ${c.documentName}${c.pageNumber ? `, p. ${c.pageNumber}` : ''}\n\n`;
+        });
+
+        return md;
+    }
+
+    /**
+     * Get available paper templates
+     */
+    getAvailableTemplates(): { id: string; label: string; description: string }[] {
+        return [
+            { id: 'ieee', label: 'IEEE Conference', description: 'IEEE conference paper format' },
+            { id: 'springer', label: 'Springer LNCS', description: 'Springer Lecture Notes format' },
+            { id: 'acm', label: 'ACM SIGCONF', description: 'ACM conference proceedings' },
+            { id: 'apa', label: 'APA Style', description: 'American Psychological Association format' },
+            { id: 'custom', label: 'Custom', description: 'Use your own template' }
+        ];
     }
 }

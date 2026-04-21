@@ -2,6 +2,25 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
+/**
+ * Bounding box rectangle in PDF coordinate space
+ */
+export interface BoundingRect {
+    x: number;      // Left position (PDF units or normalized 0-1)
+    y: number;      // Top position (PDF units or normalized 0-1)
+    width: number;  // Width
+    height: number; // Height
+}
+
+/**
+ * Position data for a chunk in the source PDF
+ */
+export interface ChunkPosition {
+    pageNumber: number;
+    rects: BoundingRect[];           // Bounding rectangles (may span multiple lines)
+    normalizedRects?: BoundingRect[]; // Rects normalized to 0-1 range for viewer compatibility
+}
+
 export interface DocumentChunk {
     id: string;
     documentId: string;
@@ -10,6 +29,8 @@ export interface DocumentChunk {
     startIndex: number;
     endIndex: number;
     embedding?: number[];
+    // PDF position data for citation highlighting
+    position?: ChunkPosition;
 }
 
 export interface DocumentImage {
@@ -38,6 +59,14 @@ export interface DocumentMetadata {
     docxPath?: string;  // Path to converted DOCX file (if using DOCX conversion)
     tags?: string[];
     customMetadata?: Record<string, any>;
+    // Temporal metadata for knowledge graph
+    publishedYear?: number;
+    publishedDate?: string;  // ISO date string
+    authors?: string[];
+    doi?: string;
+    venue?: string;  // Journal/conference name
+    citedDocuments?: string[];  // IDs of documents this one cites
+    citedByDocuments?: string[];  // IDs of documents that cite this one
 }
 
 export interface SearchResult {
@@ -49,6 +78,8 @@ export interface SearchResult {
     pageNumber: number;
     score: number;
     excerpt: string;
+    // Position data for citation highlighting
+    position?: ChunkPosition;
 }
 
 export class DocumentStore {

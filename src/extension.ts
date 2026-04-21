@@ -8,11 +8,18 @@ import { CitationExtractor } from './services/citationExtractor';
 import { DocxConverter } from './services/docxConverter';
 import { PodcastGenerator, PodcastConfig } from './services/podcastGenerator';
 import { KnowledgeGraphService } from './services/knowledgeGraphService';
-import { ResearchWritingAssistant, WritingRequest } from './services/researchWritingAssistant';
+import { ResearchWritingAssistant, WritingRequest, FullPaperRequest } from './services/researchWritingAssistant';
 import { ResearchChatParticipant } from './chat/researchParticipant';
 import { ResearchToolProvider } from './chat/toolProvider';
 import { DocumentTreeProvider } from './views/documentTreeProvider';
 import { DashboardPanel } from './views/dashboardPanel';
+// New imports for enhanced features
+import { PdfPositionService } from './services/pdfPositionService';
+import { PdfViewerService, CitationLink } from './services/pdfViewerService';
+import { CitedAnswerGenerator } from './services/citedAnswerGenerator';
+import { TemporalGraphService } from './services/temporalGraphService';
+import { TemplateManager } from './services/templateManager';
+import { PaperGeneratorPanel } from './views/paperGeneratorPanel';
 
 let pdfIndexer: PdfIndexer;
 let searchService: SearchService;
@@ -25,6 +32,12 @@ let podcastGenerator: PodcastGenerator;
 let knowledgeGraphService: KnowledgeGraphService;
 let writingAssistant: ResearchWritingAssistant;
 let documentTreeProvider: DocumentTreeProvider;
+// New service instances
+let pdfPositionService: PdfPositionService;
+let pdfViewerService: PdfViewerService;
+let citedAnswerGenerator: CitedAnswerGenerator;
+let temporalGraphService: TemporalGraphService;
+let templateManager: TemplateManager;
 
 export async function activate(context: vscode.ExtensionContext) {
     console.log('Research Copilot is now active!');
@@ -60,6 +73,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Initialize research writing assistant
     writingAssistant = new ResearchWritingAssistant(context, documentStore, searchService);
+
+    // Initialize new enhanced services
+    pdfPositionService = new PdfPositionService(context);
+    pdfViewerService = new PdfViewerService(context, pdfPositionService);
+    citedAnswerGenerator = new CitedAnswerGenerator(context, documentStore, searchService, pdfPositionService);
+    temporalGraphService = new TemporalGraphService(context, documentStore, knowledgeGraphService);
+    templateManager = new TemplateManager(context);
 
     // Set context for conditional UI
     const hasDocuments = documentStore.getDocumentCount() > 0;
@@ -680,11 +700,164 @@ export async function activate(context: vscode.ExtensionContext) {
                     vscode.window.showErrorMessage(`Failed to generate content: ${error.message}`);
                 }
             });
+        }),
+
+        // === NEW ENHANCED FEATURES ===
+
+        // Open citation in PDF with highlighting
+        vscode.commands.registerCommand('researchCopilot.openCitation', async (citationData?: any) => {
+            if (!citationData) {
+                vscode.window.showErrorMessage('No citation data provided');
+                return;
+            }
+
+            const citationLink: CitationLink = {
+                citationId: citationData.documentPath + '_' + citationData.pageNumber,
+                documentPath: citationData.documentPath,
+                documentName: citationData.documentName || 'Document',
+                pageNumber: citationData.pageNumber || 1,
+                text: citationData.text || '',
+                position: citationData.position
+            };
+
+            try {
+                await pdfViewerService.openPdfAtCitation(citationLink);
+            } catch (error: any) {
+                vscode.window.showErrorMessage(`Failed to open PDF: ${error.message}`);
+            }
+        }),
+
+        // Show Temporal Knowledge Graph
+        vscode.commands.registerCommand('researchCopilot.showTemporalGraph', async () => {
+            const documents = documentStore.getAllDocuments();
+            if (documents.length === 0) {
+                vscode.window.showErrorMessage('No documents indexed. Please index some PDFs first.');
+                return;
+            }
+
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: 'Building temporal knowledge graph...',
+                cancellable: false
+            }, async (progress) => {
+                try {
+                    const graph = await temporalGraphService.buildTemporalGraph(progress);
+                    
+                    // Show stats
+                    const stats = temporalGraphService.getCitationStats();
+                    const influential = temporalGraphService.getMostInfluentialPapers(5);
+                    
+                    const panel = vscode.window.createWebviewPanel(
+                        'temporalGraph',
+                        'Temporal Knowledge Graph',
+                        vscode.ViewColumn.One,
+                        { enableScripts: true }
+                    );
+
+                    panel.webview.html = `
+                        <h1>📊 Temporal Knowledge Graph</h1>
+                        <h2>Most Influential Papers</h2>
+                        <ul>
+                            ${influential.map(p => `<li>${p.label} (${p.publishedYear || 'Unknown'})</li>`).join('')}
+                        </ul>
+                        <h2>Citation Timeline</h2>
+                        <p>Documents span ${graph.temporal.minYear} - ${graph.temporal.maxYear}</p>
+                        <p>${graph.temporal.citationChains.length} citation chains detected</p>
+                    `;
+                } catch (error: any) {
+                    vscode.window.showErrorMessage(`Failed to build temporal graph: ${error.message}`);
+                }
+            });
+        }),
+
+        // Generate Full Research Paper
+        vscode.commands.registerCommand('researchCopilot.generatePaper', async () => {
+            // Open the Paper Generator Panel
+            PaperGeneratorPanel.createOrShow(
+                context.extensionUri,
+                documentStore,
+                templateManager,
+                writingAssistant,
+                searchService
+            );
+        }),
+
+        // Quick Generate Paper (command-line style)
+        vscode.commands.registerCommand('researchCopilot.quickGeneratePaper', async () => {
+            const documents = documentStore.getAllDocuments();
+            if (documents.length === 0) {
+                vscode.window.showErrorMessage('No documents indexed. Please index some PDFs first.');
+                return;
+            }
+
+            // Get paper title
+            const title = await vscode.window.showInputBox({
+                prompt: 'Enter paper title',
+                placeHolder: 'e.g., A Survey of Machine Learning Techniques'
+            });
+            if (!title) return;
+
+            // Select template
+            const templates = writingAssistant.getAvailableTemplates();
+            const templateChoice = await vscode.window.showQuickPick(
+                templates.map(t => ({ label: t.label, description: t.description, value: t.id })),
+                { placeHolder: 'Select paper template' }
+            );
+            if (!templateChoice) return;
+
+            // Enter author info
+            const authorName = await vscode.window.showInputBox({
+                prompt: 'Enter author name(s)',
+                placeHolder: 'John Doe, Jane Smith'
+            });
+            if (!authorName) return;
+
+            const authors = authorName.split(',').map(name => ({ name: name.trim() }));
+
+            // Generate
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: 'Generating research paper...',
+                cancellable: false
+            }, async (progress) => {
+                try {
+                    const request: FullPaperRequest = {
+                        title,
+                        authors,
+                        topic: title,
+                        template: templateChoice.value as any,
+                        citationStyle: templateChoice.value === 'apa' ? 'apa' : 'ieee',
+                        sections: ['introduction', 'related_work', 'methodology', 'results', 'discussion', 'conclusion']
+                    };
+
+                    const result = await writingAssistant.generateFullPaper(request, progress);
+
+                    // Open the LaTeX file
+                    const doc = await vscode.workspace.openTextDocument({
+                        content: result.latex,
+                        language: 'latex'
+                    });
+                    await vscode.window.showTextDocument(doc);
+
+                    vscode.window.showInformationMessage(
+                        `Generated paper with ${result.sections.length} sections and ${result.citations.length} citations!`
+                    );
+                } catch (error: any) {
+                    vscode.window.showErrorMessage(`Failed to generate paper: ${error.message}`);
+                }
+            });
         })
     );
 
-    // Register Chat Participant with enhanced search
-    const chatParticipant = new ResearchChatParticipant(documentStore, searchService, citationExtractor, highlightService);
+    // Register Chat Participant with enhanced search and citations
+    const chatParticipant = new ResearchChatParticipant(
+        documentStore, 
+        searchService, 
+        citationExtractor, 
+        highlightService,
+        citedAnswerGenerator,
+        pdfViewerService
+    );
     context.subscriptions.push(
         vscode.chat.createChatParticipant('researchCopilot.research', chatParticipant.handleRequest.bind(chatParticipant))
     );

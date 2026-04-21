@@ -116,6 +116,24 @@
         "command": "researchCopilot.writeResearch",
         "title": "Research Copilot: Write Research (Literature Review, Abstract, etc.)",
         "icon": "$(edit)"
+      },
+      {
+        "command": "researchCopilot.openCitation",
+        "title": "Research Copilot: Open Citation in PDF"
+      },
+      {
+        "command": "researchCopilot.showTemporalGraph",
+        "title": "Research Copilot: Show Temporal Knowledge Graph",
+        "icon": "$(timeline-view-icon)"
+      },
+      {
+        "command": "researchCopilot.generatePaper",
+        "title": "Research Copilot: Generate Research Paper",
+        "icon": "$(notebook)"
+      },
+      {
+        "command": "researchCopilot.quickGeneratePaper",
+        "title": "Research Copilot: Quick Generate Paper (IEEE/Springer/ACM)"
       }
     ],
     "views": {
