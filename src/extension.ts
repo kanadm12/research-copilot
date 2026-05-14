@@ -189,7 +189,21 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // Build semantic index command
         vscode.commands.registerCommand('researchCopilot.buildSemanticIndex', async () => {
-            await searchService.buildEmbeddingIndex();
+            const docCount = documentStore.getDocumentCount();
+            if (docCount === 0) {
+                vscode.window.showWarningMessage('No documents indexed. Index some PDFs first.');
+                return;
+            }
+            const totalChunks = documentStore.getAllDocuments().reduce((sum, d) => sum + d.chunks.length, 0);
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: 'Research Copilot: Building semantic index',
+                cancellable: false
+            }, async (progress) => {
+                progress.report({ message: `Embedding ${totalChunks} chunks from ${docCount} documents...` });
+                await searchService.buildEmbeddingIndex();
+                progress.report({ message: 'Complete!' });
+            });
             vscode.window.showInformationMessage('Semantic search index built successfully!');
         }),
 
@@ -999,11 +1013,18 @@ async function indexWorkspace() {
         if (failed > 0) {
             vscode.window.showWarningMessage(`Indexed ${processed} PDF files. ${failed} failed.`);
         } else {
-            vscode.window.showInformationMessage(`Successfully indexed ${processed} PDF files.`);
+            const action = await vscode.window.showInformationMessage(
+                `Indexed ${processed} PDF files. Build semantic index now for AI-powered search?`,
+                'Build Semantic Index',
+                'Done'
+            );
+            if (action === 'Build Semantic Index') {
+                vscode.commands.executeCommand('researchCopilot.buildSemanticIndex');
+            }
         }
-        
+
         vscode.commands.executeCommand('setContext', 'researchCopilot.hasIndexedDocuments', processed > 0);
-        
+
         // Refresh the tree view
         documentTreeProvider.refresh();
     });

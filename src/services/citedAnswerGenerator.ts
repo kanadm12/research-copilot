@@ -261,20 +261,13 @@ Answer:`;
             return { rawAnswer, chunkUsage };
         } catch (error) {
             console.error('Error generating answer:', error);
-            
-            // Fallback: Return a simple concatenation of relevant chunks
-            const fallbackAnswer = `Based on the available sources:\n\n${
-                chunks.slice(0, 3).map((c, i) => 
-                    `${c.text.substring(0, 200)}... [SOURCE ${i + 1}]`
-                ).join('\n\n')
+
+            // Fallback: raw excerpts only — no citation markers so no false citations are shown
+            const fallbackAnswer = `*AI generation unavailable. Showing raw source excerpts:*\n\n${
+                chunks.slice(0, 3).map(c => c.text.substring(0, 300)).join('\n\n---\n\n')
             }`;
 
-            const chunkUsage = new Map<string, number[]>();
-            chunks.slice(0, 3).forEach((c, i) => {
-                chunkUsage.set(c.chunkId, [i * 50]);  // Approximate positions
-            });
-
-            return { rawAnswer: fallbackAnswer, chunkUsage };
+            return { rawAnswer: fallbackAnswer, chunkUsage: new Map() };
         }
     }
 

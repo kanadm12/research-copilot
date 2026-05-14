@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
 import { DocumentStore } from '../services/documentStore';
 import { SearchService } from '../services/searchService';
 import { CitationExtractor } from '../services/citationExtractor';
@@ -171,7 +172,7 @@ export class ResearchToolProvider {
                     parts.push(new vscode.LanguageModelTextPart(
                         `## Image from Page ${img.pageNumber}\n` +
                         `- Size: ${img.width}x${img.height}\n` +
-                        `- Path: ${img.path}\n` +
+                        `- File: ${path.basename(img.path)}\n` +
                         (img.description ? `- Description: ${img.description}\n` : '') +
                         (img.ocrText ? `- OCR Text: ${img.ocrText.substring(0, 500)}${img.ocrText.length > 500 ? '...' : ''}\n` : '') +
                         '\n'

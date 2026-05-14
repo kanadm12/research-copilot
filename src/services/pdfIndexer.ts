@@ -113,14 +113,24 @@ export class PdfIndexer {
      */
     private estimatePageBreaks(text: string, pageCount: number): Map<number, string> {
         const pageTexts = new Map<number, string>();
+        if (pageCount === 0) return pageTexts;
+
+        // Form feed (\f) is the standard page break marker in PDF text extraction
+        const ffPages = text.split('\f');
+        if (ffPages.length >= pageCount) {
+            for (let i = 0; i < pageCount; i++) {
+                pageTexts.set(i + 1, ffPages[i] || '');
+            }
+            return pageTexts;
+        }
+
+        // Fallback: even split — page numbers will be approximate
         const avgCharsPerPage = Math.max(text.length / pageCount, 100);
-        
         for (let i = 1; i <= pageCount; i++) {
             const start = Math.floor((i - 1) * avgCharsPerPage);
             const end = Math.floor(i * avgCharsPerPage);
             pageTexts.set(i, text.substring(start, end));
         }
-        
         return pageTexts;
     }
 
@@ -183,13 +193,20 @@ export class PdfIndexer {
         // Get full cleaned text
         const fullText = this.cleanText(pdfData.text || '');
         
-        // If page-by-page extraction failed, do a simple split
+        // If page-by-page extraction failed, try form feed splits then even split
         if (pageTexts.size === 0 || pageTexts.size < pdfData.numpages) {
-            const avgCharsPerPage = Math.max(fullText.length / pdfData.numpages, 100);
-            for (let i = 1; i <= pdfData.numpages; i++) {
-                const start = Math.floor((i - 1) * avgCharsPerPage);
-                const end = Math.floor(i * avgCharsPerPage);
-                pageTexts.set(i, fullText.substring(start, end));
+            const ffPages = fullText.split('\f');
+            if (ffPages.length >= pdfData.numpages) {
+                for (let i = 0; i < pdfData.numpages; i++) {
+                    pageTexts.set(i + 1, ffPages[i] || '');
+                }
+            } else if (pdfData.numpages > 0) {
+                const avgCharsPerPage = Math.max(fullText.length / pdfData.numpages, 100);
+                for (let i = 1; i <= pdfData.numpages; i++) {
+                    const start = Math.floor((i - 1) * avgCharsPerPage);
+                    const end = Math.floor(i * avgCharsPerPage);
+                    pageTexts.set(i, fullText.substring(start, end));
+                }
             }
         }
 

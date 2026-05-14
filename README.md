@@ -173,7 +173,7 @@ Exposes your research to Copilot through 8+ Language Model Tools:
 
 ```bash
 # Clone the repository
-git clone https://github.com/anant/research-copilot.git
+git clone https://github.com/kanadm12/research-copilot.git
 cd research-copilot
 
 # Install dependencies

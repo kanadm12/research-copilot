@@ -34,9 +34,12 @@ export class EmbeddingService {
 
         this.isInitializing = true;
         this.initPromise = this._initialize();
-        
+
         try {
             await this.initPromise;
+        } catch (error) {
+            this.initPromise = null; // Allow retry on next call
+            throw error;
         } finally {
             this.isInitializing = false;
         }
