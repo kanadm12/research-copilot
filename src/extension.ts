@@ -40,11 +40,16 @@ let temporalGraphService: TemporalGraphService;
 let templateManager: TemplateManager;
 
 export async function activate(context: vscode.ExtensionContext) {
+    // BREAKPOINT: Extension activation entry
+    debugger;
     console.log('Research Copilot is now active!');
 
     // Initialize core services
     documentStore = new DocumentStore(context);
     await documentStore.initialize();
+
+    // BREAKPOINT: After DocumentStore initialization
+    debugger;
 
     // Initialize embedding service (MiniLM model for semantic search)
     embeddingService = new EmbeddingService(context);
@@ -54,6 +59,9 @@ export async function activate(context: vscode.ExtensionContext) {
     
     // Initialize PDF indexer
     pdfIndexer = new PdfIndexer(documentStore, context);
+
+    // BREAKPOINT: After PDF indexer setup
+    debugger;
 
     // Initialize highlight service
     highlightService = new HighlightService(context);
