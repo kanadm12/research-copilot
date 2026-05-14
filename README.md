@@ -9,6 +9,14 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/TypeScript-5.0-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/VS_Code-1.85+-007ACC?logo=visualstudiocode&logoColor=white" alt="VS Code">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
+  <img src="https://img.shields.io/badge/AI-Local_Embeddings-blueviolet" alt="Local AI">
+  <img src="https://img.shields.io/badge/Built_with-Claude_Code-orange" alt="Built with Claude Code">
+</p>
+
+<p align="center">
   <a href="#-features">Features</a> •
   <a href="#-installation">Installation</a> •
   <a href="#-quick-start">Quick Start</a> •
@@ -22,6 +30,20 @@
 ## 📖 Overview
 
 **Research Copilot** is a VS Code extension that transforms your research workflow. Index PDF documents, ask questions with AI-powered answers that cite sources with page numbers, generate knowledge graphs, create audio podcasts, and write full research papers with automatic citations — all without leaving your editor.
+
+---
+
+## ⚡ Built AI-Natively with Claude Code
+
+This extension was designed and shipped using **Claude Code** as a core development tool — not as a code autocomplete, but as a collaborative engineering partner.
+
+**The approach:**
+- Architecture was designed collaboratively: service boundaries, data flow, and initialization order were reasoned through with Claude Code before a single file was written
+- 14+ services were scaffolded and iterated rapidly — what would take weeks solo was compressed into days
+- All local AI (ONNX embeddings, no API key required) was chosen deliberately for privacy and offline capability — Claude Code helped evaluate and integrate `@xenova/transformers` with the VS Code extension lifecycle
+- Complex features like bounding-box PDF highlighting and hybrid TF-IDF + semantic search were implemented through tight human-AI iteration loops
+
+**Why this matters:** AI-native development isn't about generating code blindly — it's about using AI as a force multiplier to ship ambitious features faster while keeping architectural judgment human. This project is a working example of that.
 
 ---
 
@@ -151,7 +173,7 @@ Exposes your research to Copilot through 8+ Language Model Tools:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/research-copilot.git
+git clone https://github.com/anant/research-copilot.git
 cd research-copilot
 
 # Install dependencies
@@ -446,6 +468,35 @@ The model runs locally via `@xenova/transformers` (ONNX runtime) — **your rese
 
 ---
 
+## 🎬 Demo
+
+> **5-minute walkthrough of the core workflow:**
+
+**1. Index your papers**
+```
+Ctrl+Shift+P → "Research Copilot: Index All PDFs in Workspace"
+```
+
+**2. Ask a question with citations**
+```
+@research /cited What methods were used to improve transformer efficiency?
+```
+→ Returns cited answer with `[1, p.5]` inline links. Click any citation to jump to the exact passage, highlighted in the PDF.
+
+**3. Visualize the knowledge graph**
+```
+Ctrl+Shift+P → "Research Copilot: Show Knowledge Graph"
+```
+→ Interactive D3.js graph showing semantic connections and citation chains across papers.
+
+**4. Generate a research paper**
+```
+Ctrl+Shift+P → "Research Copilot: Generate Research Paper"
+```
+→ Select IEEE/Springer/ACM template, get LaTeX + BibTeX auto-populated from your indexed sources.
+
+---
+
 ## 🎯 Use Cases
 
 | Use Case | Features |
@@ -516,7 +567,7 @@ Add your own LaTeX templates:
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) first.
+Contributions are welcome!
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
